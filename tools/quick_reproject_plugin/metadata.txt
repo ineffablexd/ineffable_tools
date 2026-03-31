@@ -1,0 +1,16 @@
+[general]
+name = Quick Reproject Pro
+qgisMinimumVersion = 3.0
+version = 2.0.2
+description = Fast coordinate reference system (CRS) reprojection with custom shortcuts.
+about = A QGIS plugin for instant layer reprojection via hotkeys. Resides under 'Ineffable Tools'. Defaults cover Indian UTM zones: Alt+2 (42N), Alt+3 (43N), Alt+4 (44N), Alt+5 (45N), Alt+6 (46N), and Alt+8 (WGS84). Users can customize shortcuts via the built-in manager.
+author = Vicky Sharma
+email = vsharma@powergrid.in
+repository = https://github.com/ineffablexd/quick_reproject_plugin
+homepage = https://github.com/ineffablexd/quick_reproject_plugin
+tracker = https://github.com/ineffablexd/quick_reproject_plugin/issues
+license = GPL-2.0-or-later
+icon = icon.png
+tags = utm, reproject, crs, coordinate, quick, tools, ineffable
+experimental = False
+deprecated = False

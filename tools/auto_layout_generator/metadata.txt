@@ -1,0 +1,17 @@
+[general]
+name=Auto Layout Generator
+description=Professional cartographic layout automation tool with dynamic grids, synchronized scale bars, and automated styling.
+about=Auto Layout Generator is a high-performance QGIS plugin designed for automating professional map layouts. It handles complex coordinate transformations to ensure valid rendering of map extents, grids (WGS84), and scale bars. Key features include adaptive scale units (switches between meters and km), dynamic "North" labels, automated legend synchronization, and a sleek progress-tracking UI. Developed to streamline cartographic workflows for GIS professionals, ensuring stable and aesthetically pleasing map outputs every time.
+version=2.0
+qgisMinimumVersion=3.0
+author=Vicky Sharma
+email=vsharma@powergrid.in
+repository=https://github.com/ineffablexd/auto_layout_generator
+homepage=https://github.com/ineffablexd/auto_layout_generator
+tracker=https://github.com/ineffablexd/auto_layout_generator/issues
+license=GPL-2.0-or-later
+icon=icon.png
+tags=layout, cartography, map, grid, legend, automation, printing, professional, qgis
+category=Map Tools
+experimental=False
+deprecated=False

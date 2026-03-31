@@ -1,0 +1,18 @@
+[general]
+name = Color Snap & Polygon Extractor
+qgisMinimumVersion = 3.0
+version = 1.2.0
+description = Advanced color-based polygon extraction and geometry smoothing toolset.
+
+about = A suite of tools for precise GIS digitization. 'Canvas Extractor' scans the canvas for specific colors to automatically trace objects, while 'Shape Smoother' eliminates vertex-level aliasing and stair-stepping artifacts through advanced averaging. Optimized for high-quality topo-vector workflows.
+
+author = Vicky Sharma
+email = vsharma@powergrid.in
+repository = https://github.com/ineffablexd/color_snap_and-polygon_extractor
+homepage = https://github.com/ineffablexd/color_snap_and-polygon_extractor
+tracker = https://github.com/ineffablexd/color_snap_and-polygon_extractor/issues
+license = GPL-2.0-or-later
+icon = icon.png
+tags = extract, color, smooth, vector, digitize, digitizer, classification
+experimental = False
+deprecated = False

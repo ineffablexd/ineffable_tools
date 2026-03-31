@@ -1,0 +1,22 @@
+<!DOCTYPE shortcuts>
+<qgsshortcuts locale="en_US" version="1.1">
+    <action name="New Spatial Bookmark…" shortcut="" setting="/shortcuts/mActionNewBookmark"/>
+    <action name="Dynamic Route Checker" shortcut="Alt+D" setting="/shortcuts/Dynamic Route Checker"/>
+    <action name="Merge Vector Layers…" shortcut="Ctrl+M" setting="/shortcuts/mProcessingUserMenu_native:mergevectorlayers"/>
+    <action name="Open Attribute Table (Selected Features)" shortcut="Shift+T" setting="/shortcuts/mActionOpenTableSelected"/>
+    <action name="Warp (Reproject)…" shortcut="Ctrl+W" setting="/shortcuts/mProcessingUserMenu_gdal:warpreproject"/>
+    <action name="Toggle Snapping" shortcut="Shift+S" setting="/shortcuts/EnableSnappingAction"/>
+    <action name="Dissolve…" shortcut="Ctrl+D" setting="/shortcuts/mProcessingUserMenu_native:dissolve"/>
+    <action name="New Map View" shortcut="" setting="/shortcuts/mActionNewMapCanvas"/>
+    <action name="Reproject Layer…" shortcut="Ctrl+R" setting="/shortcuts/mProcessingUserMenu_native:reprojectlayer"/>
+    <action name="⚙ Manage Reprojection Shortcuts" shortcut="Alt+R" setting="/shortcuts/⚙ Manage Reprojection Shortcuts"/>
+    <action name="DEM Resample Interpolator" shortcut="Alt+I" setting="/shortcuts/DEM Resample Interpolator"/>
+    <action name="Add PostgreSQL Layer…" shortcut="" setting="/shortcuts/mActionAddPgLayer"/>
+    <action name="Buffer…" shortcut="Ctrl+B" setting="/shortcuts/mProcessingUserMenu_native:buffer"/>
+    <action name="Remove Layer/Group" shortcut="Ctrl+Shift+D" setting="/shortcuts/mActionRemoveLayer"/>
+    <action name="Toggle Editing" shortcut="Alt+E" setting="/shortcuts/mActionToggleEditing"/>
+    <action name="Save Layer Edits" shortcut="Alt+S" setting="/shortcuts/mActionSaveLayerEdits"/>
+    <action name="New Shapefile Layer…" shortcut="Alt+L" setting="/shortcuts/mActionNewVectorLayer"/>
+    <action name="Crossing Angel Analyser" shortcut="Alt+A" setting="/shortcuts/Crossing Angel Analyser"/>
+    <action name="Tower Spotter" shortcut="Alt+T" setting="/shortcuts/Tower Spotter"/>
+</qgsshortcuts>

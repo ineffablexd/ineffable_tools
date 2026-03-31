@@ -1,0 +1,576 @@
+from qgis.PyQt.QtWidgets import (
+    QAction, QDialog, QVBoxLayout, QLabel,
+    QPushButton, QDoubleSpinBox, QSpinBox,
+    QColorDialog, QTextEdit, QWidget,
+    QProgressBar, QApplication, QCheckBox
+)
+from qgis.PyQt.QtGui import QColor, QPainter, QBrush, QIcon
+from qgis.core import (
+    QgsProject, QgsVectorLayer, QgsFeature,
+    QgsGeometry, QgsPointXY, QgsWkbTypes, QgsRectangle,
+    QgsMapLayerProxyModel
+)
+from qgis.gui import QgsMapTool, QgsRubberBand, QgsMapLayerComboBox
+from qgis.PyQt.QtCore import Qt
+import traceback
+import colorsys
+import os
+
+class CanvasColorPicker(QgsMapTool):
+    def __init__(self, canvas, callback):
+        super().__init__(canvas)
+        self.canvas = canvas
+        self.callback = callback
+
+    def canvasReleaseEvent(self, e):
+        img = self.canvas.grab().toImage()
+        x = int(e.pos().x())
+        y = int(e.pos().y())
+
+        if 0 <= x < img.width() and 0 <= y < img.height():
+            c = img.pixelColor(x, y)
+            rgb = (c.red(), c.green(), c.blue())
+            self.callback(rgb)
+
+        self.canvas.unsetMapTool(self)
+
+
+class ColorSwatchList(QWidget):
+    def __init__(self, get_colors, on_select):
+        super().__init__()
+        self.get_colors = get_colors
+        self.on_select = on_select
+        self.selected_index = 0
+        self.setMinimumHeight(50)
+
+    def mousePressEvent(self, e):
+        colors = self.get_colors()
+        if not colors:
+            return
+
+        w = self.width() // len(colors)
+        index = int(e.pos().x() / w)
+
+        if 0 <= index < len(colors):
+            self.selected_index = index
+            self.on_select(index)
+            self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        colors = self.get_colors()
+
+        if not colors:
+            return
+
+        w = self.width() // len(colors)
+
+        for i, (r, g, b) in enumerate(colors):
+            painter.setBrush(QColor(r, g, b))
+            painter.setPen(Qt.NoPen)
+            painter.drawRect(i * w, 0, w, self.height())
+
+            # highlight selected
+            if i == self.selected_index:
+                painter.setPen(QColor(255, 0, 0)) # Red
+                painter.setBrush(Qt.NoBrush)
+                width = 3
+                painter.drawRect(i * w + width, width, w - 2*width, self.height() - 2*width)
+
+
+class TolerancePreview(QWidget):
+    def __init__(self, get_color, get_selected_index):
+        super().__init__()
+        self.get_color = get_color
+        self.get_selected_index = get_selected_index
+        self.setMinimumHeight(50)
+        self.min_factor = 0.25
+        self.max_factor = 0.75
+        self.dragging = None
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+
+        colors = self.get_color()
+        if not colors:
+            return
+
+        # Use selected color
+        idx = self.get_selected_index()
+        if idx >= len(colors):
+            idx = len(colors) - 1
+        r, g, b = colors[idx]
+
+        # Convert to HSV
+        h, s, v = colorsys.rgb_to_hsv(r/255, g/255, b/255)
+
+        for x in range(self.width()):
+            factor = x / self.width()
+            # vary VALUE (brightness) from 0 to 1
+            rr, gg, bb = colorsys.hsv_to_rgb(h, s, factor)
+            painter.setBrush(QBrush(QColor(int(rr*255), int(gg*255), int(bb*255))))
+            painter.setPen(Qt.NoPen)
+            painter.drawRect(x, 0, 1, self.height())
+
+        # draw selection overlay
+        painter.setPen(Qt.red)
+        painter.drawLine(int(self.min_factor * self.width()), 0,
+                         int(self.min_factor * self.width()), self.height())
+
+        painter.drawLine(int(self.max_factor * self.width()), 0,
+                         int(self.max_factor * self.width()), self.height())
+
+    def mousePressEvent(self, e):
+        x = e.pos().x() / self.width()
+        if abs(x - self.min_factor) < 0.05:
+            self.dragging = "min"
+        elif abs(x - self.max_factor) < 0.05:
+            self.dragging = "max"
+
+    def mouseMoveEvent(self, e):
+        if not self.dragging:
+            return
+        x = max(0, min(1, e.pos().x() / self.width()))
+        if self.dragging == "min":
+            self.min_factor = min(x, self.max_factor - 0.01)
+        else:
+            self.max_factor = max(x, self.min_factor + 0.01)
+        self.update()
+
+    def mouseReleaseEvent(self, e):
+        self.dragging = None
+
+
+
+def smooth_polygon_geometry(geom, iterations=1, strength=0.5):
+    """
+    Custom vertex-based smoothing.
+    Removes zig-zag spikes by averaging neighboring vertices.
+    """
+
+    if geom.isEmpty():
+        return geom
+
+    if geom.isMultipart():
+        parts = geom.asMultiPolygon()
+    else:
+        parts = [geom.asPolygon()]
+
+    new_parts = []
+
+    for part in parts:
+        new_rings = []
+
+        for ring in part:
+            if len(ring) < 4:
+                new_rings.append(ring)
+                continue
+
+            pts = ring[:]
+
+            for _ in range(iterations):
+                new_pts = []
+
+                for i in range(len(pts)):
+                    prev = pts[i - 1]
+                    curr = pts[i]
+                    next = pts[(i + 1) % len(pts)]
+
+                    # midpoint smoothing
+                    new_x = curr.x() * (1 - strength) + ((prev.x() + next.x()) / 2) * strength
+                    new_y = curr.y() * (1 - strength) + ((prev.y() + next.y()) / 2) * strength
+
+                    new_pts.append(QgsPointXY(new_x, new_y))
+
+                pts = new_pts
+
+            new_rings.append(pts)
+
+        new_parts.append(new_rings)
+
+    return QgsGeometry.fromMultiPolygonXY(new_parts)
+
+
+class PluginDialog(QDialog):
+    def __init__(self, canvas):
+        super().__init__()
+        self.canvas = canvas
+        self.colors = []
+        self.layer = None
+
+        self.setWindowTitle("Canvas Color Extractor 🔥")
+
+        layout = QVBoxLayout()
+
+        self.selected_color_index = 0
+        self.swatches = ColorSwatchList(lambda: self.colors, self.set_active_color)
+        self.preview = TolerancePreview(lambda: self.colors, lambda: self.selected_color_index)
+
+        self.pick_btn = QPushButton("Pick Color")
+        self.run_btn = QPushButton("Extract from Canvas")
+
+        self.progress = QProgressBar()
+
+        self.log_box = QTextEdit()
+        self.log_box.setReadOnly(True)
+
+        layout.addWidget(QLabel("Picked Colors (Click to Select Active)"))
+        layout.addWidget(self.swatches)
+        layout.addWidget(QLabel("Active Color Tolerance Spectrum"))
+        layout.addWidget(self.preview)
+        layout.addWidget(self.pick_btn)
+        layout.addWidget(self.run_btn)
+        layout.addWidget(QLabel("Progress"))
+        layout.addWidget(self.progress)
+        layout.addWidget(QLabel("Debug Log"))
+        layout.addWidget(self.log_box)
+
+        self.setLayout(layout)
+
+        self.pick_btn.clicked.connect(self.pick_color)
+        self.run_btn.clicked.connect(self.run_extraction)
+
+        self.map_tool = None
+
+    def set_active_color(self, index):
+        self.selected_color_index = index
+        self.preview.update()
+        self.log(f"🎯 Switched active color to #{index + 1}")
+
+    def log(self, msg):
+        self.log_box.append(msg)
+        # keep only last 40 lines
+        lines = self.log_box.toPlainText().split("\n")
+        if len(lines) > 40:
+            self.log_box.setPlainText("\n".join(lines[-40:]))
+        print(msg)
+
+    def pick_color(self):
+        self.log("🎯 Click on canvas to pick color...")
+        self.canvas.setMapTool(CanvasColorPicker(self.canvas, self.add_color))
+
+    def add_color(self, rgb):
+        self.colors.append(rgb)
+        self.pick_btn.setText(f"{len(self.colors)} colors selected")
+        self.swatches.update()   # 🔥 update UI
+        self.preview.update()    # also update spectrum
+        self.log(f"🎨 Picked from canvas: {rgb}")
+
+    def run_extraction(self):
+        try:
+            self.log("🚀 Capturing canvas...")
+
+            img = self.canvas.grab().toImage()
+            width = img.width()
+            height = img.height()
+
+            self.log(f"Canvas size: {width} x {height}")
+
+            if not self.colors:
+                self.log("❌ No color selected")
+                return
+
+            factor_min = self.preview.min_factor
+            factor_max = self.preview.max_factor
+
+            visited = set()
+            regions = []
+
+            def match(x, y):
+                # 1. Direct pixel check
+                c = img.pixelColor(x, y)
+                r2, g2, b2 = c.red(), c.green(), c.blue()
+                h2, s2, v2 = colorsys.rgb_to_hsv(r2/255, g2/255, b2/255)
+                
+                for (r, g, b) in self.colors:
+                    h1, s1, v1 = colorsys.rgb_to_hsv(r/255, g/255, b/255)
+                    hue_diff = abs(h1 - h2)
+                    if hue_diff > 0.5: hue_diff = 1.0 - hue_diff
+                    if hue_diff < 0.05 and factor_min <= v2 <= factor_max:
+                        return True
+
+                # 2. Neighbor check (fill gaps)
+                for dx in [-1, 0, 1]:
+                    for dy in [-1, 0, 1]:
+                        if dx == 0 and dy == 0: continue
+                        nx, ny = x + dx, y + dy
+                        if 0 <= nx < width and 0 <= ny < height:
+                            cn = img.pixelColor(nx, ny)
+                            rn, gn, bn = cn.red(), cn.green(), cn.blue()
+                            hn, sn, vn = colorsys.rgb_to_hsv(rn/255, gn/255, bn/255)
+                            for (r, g, b) in self.colors:
+                                h1, s1, v1 = colorsys.rgb_to_hsv(r/255, g/255, b/255)
+                                hue_diff = abs(h1 - hn)
+                                if hue_diff > 0.5: hue_diff = 1.0 - hue_diff
+                                if hue_diff < 0.05 and factor_min <= vn <= factor_max:
+                                    return True
+                return False
+
+            # 🔥 REGION GROWING
+            total = width * height
+            count = 0
+
+            for x in range(width):
+                for y in range(height):
+                    count += 1
+                    if count % 10000 == 0:
+                        self.progress.setValue(int((count / total) * 100))
+                        QApplication.processEvents()
+
+                    if (x, y) in visited:
+                        continue
+                    if not match(x, y):
+                        continue
+
+                    stack = [(x, y)]
+                    region = []
+
+                    while stack:
+                        px, py = stack.pop()
+
+                        if (px, py) in visited:
+                            continue
+                        if px < 0 or py < 0 or px >= width or py >= height:
+                            continue
+                        if not match(px, py):
+                            continue
+
+                        visited.add((px, py))
+                        region.append((px, py))
+
+                        stack.extend([
+                            (px+1, py), (px-1, py),
+                            (px, py+1), (px, py-1)
+                        ])
+
+                    if len(region) > 20:
+                        regions.append(region)
+
+            self.progress.setValue(100)
+
+            self.log(f"Regions found: {len(regions)}")
+
+            # 🔥 CORRECT CRS FROM CANVAS
+            crs = self.canvas.mapSettings().destinationCrs().authid()
+            
+            if not self.layer:
+                self.layer = QgsVectorLayer(f"Polygon?crs={crs}", "Extracted", "memory")
+                QgsProject.instance().addMapLayer(self.layer)
+            
+            pr = self.layer.dataProvider()
+
+            # 🔥 CORRECT TRANSFORM
+            map_settings = self.canvas.mapSettings()
+            transform = map_settings.mapToPixel()
+
+            all_new_geoms = []
+            for region in regions:
+                if len(region) < 10:
+                    continue
+
+                # 1. Group pixels by rows (y-coordinate)
+                lines = {}
+                for px, py in region:
+                    if py not in lines:
+                        lines[py] = []
+                    lines[py].append(px)
+
+                # 2. Find contiguous horizontal segments
+                region_segments_geoms = []
+                for py, x_coords in lines.items():
+                    x_coords.sort()
+                    start = x_coords[0]
+                    prev = start
+
+                    segments = []
+                    for i in range(1, len(x_coords)):
+                        x = x_coords[i]
+                        if x == prev + 1:
+                            prev = x
+                        else:
+                            segments.append((start, py, prev, py))
+                            start = x
+                            prev = x
+                    segments.append((start, py, prev, py))
+
+                    # 3. Create map geometry for each segment
+                    for (startX, startY, endX, endY) in segments:
+                        p1 = transform.toMapCoordinates(startX, startY)
+                        p2 = transform.toMapCoordinates(endX + 1, startY)
+                        p3 = transform.toMapCoordinates(endX + 1, startY + 1)
+                        p4 = transform.toMapCoordinates(startX, startY + 1)
+
+                        poly = QgsGeometry.fromPolygonXY([[
+                            QgsPointXY(p1), QgsPointXY(p2), 
+                            QgsPointXY(p3), QgsPointXY(p4)
+                        ]])
+                        region_segments_geoms.append(poly)
+
+                if not region_segments_geoms:
+                    continue
+
+                # 4. Union all segments for this region
+                combined = QgsGeometry.unaryUnion(region_segments_geoms)
+                
+                # 5. Smooth + Simplify
+                # Step 1: merge small pixel gaps
+                combined = combined.buffer(1.0, 8)
+                combined = combined.buffer(-1.0, 8)
+
+                # Step 2: custom spike smoother
+                combined = smooth_polygon_geometry(combined, iterations=2, strength=0.6)
+
+                # Step 3: light simplify
+                combined = combined.simplify(0.5)
+                
+                if combined and not combined.isEmpty():
+                    all_new_geoms.append(combined)
+
+            # 6. Merge ALL new regions with existing layer content
+            if all_new_geoms:
+                final_new_geom = QgsGeometry.unaryUnion(all_new_geoms)
+                existing_feats = list(self.layer.getFeatures())
+
+                if existing_feats:
+                    merged_geom = final_new_geom
+                    for f in existing_feats:
+                        merged_geom = merged_geom.combine(f.geometry())
+
+                    # clear old and add merged
+                    self.layer.dataProvider().truncate()
+                    feat = QgsFeature()
+                    feat.setGeometry(merged_geom)
+                    pr.addFeature(feat)
+                else:
+                    feat = QgsFeature()
+                    feat.setGeometry(final_new_geom)
+                    pr.addFeature(feat)
+
+            self.layer.updateExtents()
+            self.canvas.refresh()
+
+            self.log("✅ Extraction complete")
+
+        except Exception:
+            self.log("💥 ERROR:")
+            self.log(traceback.format_exc())
+
+
+class SmootherDialog(QDialog):
+    def __init__(self, iface):
+        super().__init__()
+        self.iface = iface
+        self.setWindowTitle("Vector Shape Smoother ✨")
+        self.setMinimumWidth(400)
+
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+
+        # 1. Layer Selection
+        layout.addWidget(QLabel("Select Input Polygon Layer:"))
+        self.layer_combo = QgsMapLayerComboBox()
+        self.layer_combo.setFilters(QgsMapLayerProxyModel.PolygonLayer)
+        layout.addWidget(self.layer_combo)
+
+        # 2. Precision (Iterations)
+        layout.addWidget(QLabel("Precision (Averaging Iterations):"))
+        self.precision_spin = QSpinBox()
+        self.precision_spin.setRange(1, 10)
+        self.precision_spin.setValue(3)
+        layout.addWidget(self.precision_spin)
+
+        # 3. Intensity (Strength)
+        layout.addWidget(QLabel("Intensity (Smoothing Strength):"))
+        self.intensity_spin = QDoubleSpinBox()
+        self.intensity_spin.setRange(0.1, 1.0)
+        self.intensity_spin.setSingleStep(0.1)
+        self.intensity_spin.setValue(0.7)
+        layout.addWidget(self.intensity_spin)
+
+        # 4. Action Button
+        self.btn = QPushButton("🚀 Run Smoother on Selected Layer")
+        self.btn.setStyleSheet("font-weight: bold; background-color: #4CAF50; color: white; padding: 10px; border-radius: 5px;")
+        self.btn.clicked.connect(self.smooth_layer)
+        
+        layout.addWidget(self.btn)
+        self.setLayout(layout)
+
+    def smooth_layer(self):
+        layer = self.layer_combo.currentLayer()
+        if not layer or layer.geometryType() != QgsWkbTypes.PolygonGeometry:
+            self.iface.messageBar().pushMessage("Error", "Please select a valid polygon layer! ❌", level=2)
+            return
+
+        iterations = self.precision_spin.value()
+        strength = self.intensity_spin.value()
+
+        layer.startEditing()
+        count = 0
+        for feature in layer.getFeatures():
+            geom = feature.geometry()
+            smoothed = smooth_polygon_geometry(geom, iterations=iterations, strength=strength)
+            layer.changeGeometry(feature.id(), smoothed)
+            count += 1
+        
+        layer.commitChanges()
+        self.iface.messageBar().pushMessage("Success", f"Smoothed {count} features! ✨", level=0, duration=3)
+        self.iface.mapCanvas().refresh()
+        self.close()
+
+
+class ColorSnapPlugin:
+    def __init__(self, iface):
+        self.iface = iface
+        self.toolbar = None
+        self.menu_name = "Ineffable Tools"
+        self.menu = None
+
+    def initGui(self):
+        # Path to icons
+        path = os.path.dirname(__file__)
+
+        # 1. Find or create top-level menu
+        menu_bar = self.iface.mainWindow().menuBar()
+        self.menu = None
+        for action in menu_bar.actions():
+            if action.text().replace("&", "") == self.menu_name:
+                self.menu = action.menu()
+                break
+        
+        if not self.menu:
+            self.menu = menu_bar.addMenu(self.menu_name)
+
+        # 2. Extractor tool
+        icon_path_extract = os.path.join(path, "icon_extractor.png")
+        self.extract_action = QAction(QIcon(icon_path_extract), "Canvas Color Extractor (Scan)", self.iface.mainWindow())
+        self.extract_action.triggered.connect(self.run_extractor)
+        self.menu.addAction(self.extract_action)
+
+        # 3. Separate Smoother tool
+        icon_path_smooth = os.path.join(path, "icon_smoother.png")
+        self.smooth_action = QAction(QIcon(icon_path_smooth), "Vector Shape Smoother (Fix Aliasing)", self.iface.mainWindow())
+        self.smooth_action.triggered.connect(self.run_smoother)
+        self.menu.addAction(self.smooth_action)
+
+        # 4. Add to Toolbar
+        self.toolbar = self.iface.addToolBar(self.menu_name)
+        self.toolbar.setObjectName("IneffableToolsToolbar")
+        self.toolbar.addAction(self.extract_action)
+        self.toolbar.addAction(self.smooth_action)
+
+    def unload(self):
+        if self.menu:
+            self.menu.removeAction(self.extract_action)
+            self.menu.removeAction(self.smooth_action)
+        
+        if self.toolbar:
+            self.iface.mainWindow().removeToolBar(self.toolbar)
+            del self.toolbar
+
+    def run_extractor(self):
+        self.dlg = PluginDialog(self.iface.mapCanvas())
+        self.dlg.show()
+
+    def run_smoother(self):
+        self.smoother_dlg = SmootherDialog(self.iface)
+        self.smoother_dlg.show()

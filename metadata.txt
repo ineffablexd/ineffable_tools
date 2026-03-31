@@ -1,0 +1,33 @@
+[general]
+name=Ineffable Tools
+
+description=A comprehensive suite of QGIS tools for power grid and infrastructure workflows.
+
+about=Ineffable Tools combines multiple specialized plugins into a single unified toolkit. 
+ It includes:
+  - Auto Layout Generator
+  - DEM Resampler & Interpolator
+  - Canvas Color Extractor and Vector Smoother
+  - Crossing Angle Analyser
+  - Dynamic Route Checker
+  - Quick Reproject
+  - Tower Spotter
+
+ All tools are grouped under the "Ineffable Tools" menu and come with pre-configured 
+ keyboard shortcuts for faster and more efficient workflows.
+
+version=2.3.0
+qgisMinimumVersion=3.0
+
+author=Vicky Sharma
+email=vsharma@powergrid.in
+
+repository=https://github.com/ineffablexd/ineffable_tools
+tracker=https://github.com/ineffablexd/ineffable_tools/issues
+
+icon=icon.png
+
+tags=ineffable, tools, powergrid, transmission, layout, dem, reproject, tower, shortcuts
+
+experimental=False
+deprecated=False

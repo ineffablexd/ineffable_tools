@@ -1,0 +1,23 @@
+[general]
+name = Tower Spotter
+qgisMinimumVersion = 3.0
+version = 1.3.3
+description = Generates tower polygons at each vertex of LineString layers or imported KML files.
+ Automatically performs dynamic UTM reprojection for accurate meter-based radius calculations.
+ Output can be exported as Google Earth compatible KML (WGS84).
+ No external dependencies required.
+
+about = Tower Spotter creates tower footprint polygons for towers in transmission line and infrastructure planning workflows. 
+ Designed for engineering use cases requiring accurate tower spotting  from geographic CRS layers. 
+ Supports customizable radius, polygon sides, and colors.
+
+author = Vicky Sharma
+email = vsharma@powergrid.in
+repository = https://github.com/ineffablexd/tower_spotter
+homepage = https://github.com/ineffablexd/tower_spotter
+tracker = https://github.com/ineffablexd/tower_spotter/issues
+license = GPL-2.0-or-later
+icon = icon.png
+tags = tower, transmission, powerline, engineering, infrastructure, polygon, utm, kml
+experimental = False
+deprecated = False

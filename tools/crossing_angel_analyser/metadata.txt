@@ -1,0 +1,16 @@
+[general]
+name = Crossing Angel Analyser
+qgisMinimumVersion = 3.0
+version = 2.0.0
+description = Dynamic real-time intersection angle analyzer for lines.
+about = A QGIS plugin providing real-time analysis of intersection angles between route and obstacle layers. Features high-visibility 1.6m color-coded markers (Red <70°, Blue 70-80°, Green >80°) and automatic top-layer rendering. Part of the 'Ineffable Tools' suite.
+author = Vicky Sharma
+email = vsharma@powergrid.in
+repository = https://github.com/ineffablexd/crossing_angel_analyser
+homepage = https://github.com/ineffablexd/crossing_angel_analyser
+tracker = https://github.com/ineffablexd/crossing_angel_analyser/issues
+license = GPL-2.0-or-later
+icon = icon.png
+tags = angle, intersection, crossing, analyser, real-time, ineffable
+experimental = False
+deprecated = False
