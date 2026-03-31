@@ -24,6 +24,7 @@ email=vsharma@powergrid.in
 
 repository=https://github.com/ineffablexd/ineffable_tools
 tracker=https://github.com/ineffablexd/ineffable_tools/issues
+homepage = https://github.com/ineffablexd/ineffable_tools
 
 icon=icon.png
 
